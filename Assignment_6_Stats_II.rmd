@@ -8,24 +8,21 @@ date: "`r format(Sys.Date(), '%d.%m.%Y')`"
 output: html_document
 ---
 
-# Data cleaning procedure
+# Part 0
 
-The same data cleaning procedure was used as in Exercise 5.
+We import the dataset with `sep=";"` and use`skim(df)` to get a first overview of our data. Then, we processed the usual cleaning steps.
 
 ```{r setup, include=FALSE}
 
 # Load required packages
 library(skimr)
-library(dplyr)
-library(stargazer)
-library(lfe)
-library(marginaleffects)
+library(ggplot2)
 
 ```
 
 ```{r read csv, include=TRUE}
 # Load the data set
-df <- read.csv("education_income-3.csv")
+df <- read.csv("careworkers_did.csv", sep=";")
 
 ```
 
@@ -33,39 +30,98 @@ df <- read.csv("education_income-3.csv")
 # Summarize the data
 skim(df)
 
-# Cleaning
-
-df <- df %>%
-  
 # Replace invalid values with NA
-  
-  mutate(
-    college = ifelse(college == -1, NA, college),
-    
-    income = ifelse(income == -9999999, NA, income),
-    hhincome = ifelse(hhincome == -9999999, NA, hhincome),
-    
-    # Create new variables
-    white = race,
-    
-    low_income = ifelse(
-      hhincome < quantile(hhincome, 0.5, na.rm = TRUE),
-      1,
-      0
-    )
-  ) %>%
-  
-# Remove old variable
-  select(-race)
+df$CAREWORKERS[df$CAREWORKERS == -9999999] <- NA
+df$YIAR[df$YIAR == -1] <- NA
+
+# Shorten country names
+df$COUNTRY <- gsub("Country ", "", df$COUNTRY)
+
+# Rename column
+names(df)[names(df) == "YIAR"] <- "YEAR"
 
 # Summarize cleaned data
 skim(df)
 ```
 
-# Question 1: Descriptive Analysis
+# Part I
+
+**1. Generating two dummy variables for difference-in-differences estimation**
+
+```{r dummy variables, include=TRUE, results='hide'}
+
+# Create POST dummy
+df$POST <- ifelse(df$YEAR > 1992, 1, 0)
+
+# Create TREATED dummy
+df$TREATED <- ifelse(df$COUNTRY == "A", 1, 0)
+
+```
+
+**2. Key assumption of difference-in-differences estimation**
+
+The key assumption of the difference-in-differences estimation is that treatment and control groups would have evolved in parallel in the absence of treatment.
+
+**3. Visual evidence of key assumption**
+
+First, we created a sketch of the difference-in-differences (DiD) framework discussed in the lecture in order to illustrate the intuition behind the parallel trends assumption and the treatment effect.
+
+<img src="sketch.png" width="500">
+
+Next, we assess whether the key assumption underlying the DiD approach, the parallel trends assumption, appears to hold in our data. In particular, we examine whether the two countries followed similar trends before the reform was implemented in 1993. The graph below suggests that this assumption is reasonably satisfied.
+
+```{r visual, include=TRUE, results='hide', warning=FALSE}
+
+avg_df <- aggregate(CAREWORKERS ~ YEAR + COUNTRY,
+                    data = df,
+                    mean)
+
+ggplot(avg_df,
+       aes(x = YEAR,
+           y = CAREWORKERS,
+           color = COUNTRY)) +
+  geom_line(size = 1.2) +
+  geom_vline(xintercept = 1993,
+             linetype = "dashed") +
+  labs(title = "Countries A and B Exhibit Parallel Trends Before 1993",
+       y = "Careworkers per 100 inhabitants")
 
 
+```
+<br>
+
+**4. Formal evidence with regression**
+
+To formally test the parallel trends assumption, we estimate the following regression model using only *pre-reform* observations: 
+
+$$
+CAREWORKERS_{it} = \alpha + \beta_1 YEAR_t + \beta_2 TREATED_i + \beta_3 (YEAR_t \times TREATED_i) + \varepsilon_{it}
+$$
+
+```{r DiD regression, include=TRUE, warning=FALSE}
+
+#Setup DiD regression
+
+pre_df <- subset(df, YEAR < 1993)
+
+parallel_model <- lm(CAREWORKERS ~ YEAR * TREATED,
+                     data = pre_df)
+
+summary(parallel_model)
+
+```
+The interaction term between `YEAR` and `TREATED` is not statistically significant (`p = 0.313`), suggesting that the treatment and control groups followed similar trends prior to the reform. This provides supportive evidence for the parallel trends assumption.
+
+**5. Plausibility of the key assumption **
+
+Based on both the visual inspection and the regression analysis, the parallel trends assumption appears plausible in this context.
+
+**6. Potential concern in structure of data **
+
+A potential concern is that other structural differences or policy changes between the two countries may have affected the number of careworkers independently of the reform.
 
 
+# Part II
 
+ITS HIM \@Rochaix
 
