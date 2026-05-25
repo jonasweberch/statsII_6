@@ -1,0 +1,71 @@
+---
+title: "Assignment_6_Stats_II_Group_22"
+author:
+- "Maik David Klaiber (22-482-426)"
+- "Jonas Weber (24-621-484)"
+- "Yann Rochaix (24-622-276)"
+date: "`r format(Sys.Date(), '%d.%m.%Y')`"
+output: html_document
+---
+
+# Data cleaning procedure
+
+The same data cleaning procedure was used as in Exercise 5.
+
+```{r setup, include=FALSE}
+
+# Load required packages
+library(skimr)
+library(dplyr)
+library(stargazer)
+library(lfe)
+library(marginaleffects)
+
+```
+
+```{r read csv, include=TRUE}
+# Load the data set
+df <- read.csv("education_income-3.csv")
+
+```
+
+```{r data cleaning, include=TRUE, results='hide'}
+# Summarize the data
+skim(df)
+
+# Cleaning
+
+df <- df %>%
+  
+# Replace invalid values with NA
+  
+  mutate(
+    college = ifelse(college == -1, NA, college),
+    
+    income = ifelse(income == -9999999, NA, income),
+    hhincome = ifelse(hhincome == -9999999, NA, hhincome),
+    
+    # Create new variables
+    white = race,
+    
+    low_income = ifelse(
+      hhincome < quantile(hhincome, 0.5, na.rm = TRUE),
+      1,
+      0
+    )
+  ) %>%
+  
+# Remove old variable
+  select(-race)
+
+# Summarize cleaned data
+skim(df)
+```
+
+# Question 1: Descriptive Analysis
+
+
+
+
+
+
