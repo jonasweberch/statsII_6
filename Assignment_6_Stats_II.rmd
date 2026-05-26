@@ -10,13 +10,15 @@ output: html_document
 
 # Part 0
 
-We import the dataset with `sep=";"` and use`skim(df)` to get a first overview of our data. Then, we processed the usual cleaning steps.
+We import the dataset with `sep=";"` and use`skim(df)` to get a first overview of our data. Then, we process the usual cleaning steps.
 
 ```{r setup, include=FALSE}
 
 # Load required packages
 library(skimr)
 library(ggplot2)
+library(sandwich)
+library(lmtest)
 
 ```
 
@@ -68,7 +70,7 @@ First, we created a sketch of the difference-in-differences (DiD) framework disc
 
 <img src="sketch.png" width="500">
 
-Next, we assess whether the key assumption underlying the DiD approach, the parallel trends assumption, appears to hold in our data. In particular, we examine whether the two countries followed similar trends before the reform was implemented in 1993. The graph below suggests that this assumption is reasonably satisfied.
+Next, we assess whether the key assumption underlying the DiD approach, the parallel trends assumption, appears to hold in our data. In particular, we examine whether the two countries followed similar trends *before* the reform was implemented in 1993. The graph below suggests that this assumption is reasonably satisfied.
 
 ```{r visual, include=TRUE, results='hide', warning=FALSE}
 
@@ -92,33 +94,38 @@ ggplot(avg_df,
 
 **4. Formal evidence with regression**
 
-To formally test the parallel trends assumption, we estimate the following regression model using only *pre-reform* observations: 
+To formally assess the plausibility of the parallel trends assumption, we conduct a placebo reform test using only *pre-treatment* observations. Specifically, we artificially assign the reform to 1992 and estimate a standard DiD specification.
 
 $$
-CAREWORKERS_{it} = \alpha + \beta_1 YEAR_t + \beta_2 TREATED_i + \beta_3 (YEAR_t \times TREATED_i) + \varepsilon_{it}
+CAREWORKERS_{it} = \alpha + \beta_1 PLACEBO\_POST_t + \beta_2 TREATED_i + \beta_3 (PLACEBO\_POST_t \times TREATED_i) + \varepsilon_{it}
 $$
 
 ```{r DiD regression, include=TRUE, warning=FALSE}
 
-#Setup DiD regression
+# Placebo reform test using only pre-treatment data
 
 pre_df <- subset(df, YEAR < 1993)
 
-parallel_model <- lm(CAREWORKERS ~ YEAR * TREATED,
-                     data = pre_df)
+# Artificial placebo reform in 1992
+pre_df$PLACEBO_POST <- ifelse(pre_df$YEAR >= 1992, 1, 0)
 
-summary(parallel_model)
+placebo_model <- lm(
+  CAREWORKERS ~ TREATED * PLACEBO_POST,
+  data = pre_df
+)
+
+summary(placebo_model)
 
 ```
-The interaction term between `YEAR` and `TREATED` is not statistically significant (`p = 0.313`), suggesting that the treatment and control groups followed similar trends prior to the reform. This provides supportive evidence for the parallel trends assumption.
+The interaction term between `TREATED` and `PLACEBO_POST` is not statistically significant `(p = 0.313)`, suggesting that there is no evidence of differential pre-treatment trends between the treatment and control groups. This provides supportive evidence for the parallel trends assumption.
 
 **5. Plausibility of the key assumption **
 
-Based on both the visual inspection and the regression analysis, the parallel trends assumption appears plausible in this context.
+Based on both the visual inspection and the placebo regression, the parallel trends assumption appears plausible, however, the placebo test provides only supportive evidence, not a formal proof.
 
 **6. Potential concern in structure of data **
 
-A potential concern is that other structural differences or policy changes between the two countries may have affected the number of careworkers independently of the reform.
+A potential concern in the data structure is that observations are clustered within towns (panel data), so standard errors should be clustered at the town level to account for within-group serial correlation.
 
 
 # Part II
@@ -128,12 +135,15 @@ A potential concern is that other structural differences or policy changes betwe
 ```{r, include=TRUE, warning=FALSE}
 #Estimation
 did_model <- lm(CAREWORKERS ~ POST + TREATED + POST * TREATED, data = df)
-summary(did_model)
+
+# Clustered standard errors on town level
+coeftest(did_model, vcov = vcovCL(did_model, cluster = ~ID))
+
 ```
 
 **2. Main coefficient of interest**
 
-The main coefficient of interest is $\beta_3$ (the coefficient on the interaction term $POST \times TREATED$), because it captures the difference-in-differences estimator which is the causal effect of the reform on the treated country (Country A) over and above any time trend or baseline group difference.
+The main coefficient of interest is $\beta_3$ (the coefficient on the interaction term `POST × TREATED`), because it represents the difference-in-differences (DiD) estimator and can be interpreted as the causal effect of the reform on the treated country (Country A), relative to the control country, under the parallel trends assumption.
 
 **3. Interpretation of $\hat\beta_3$**
 
@@ -162,6 +172,6 @@ coef_table <- data.frame(
 kable(coef_table, escape = FALSE)
 ``` 
 
-**5. Was the reform succesful?**
+**5. Was the reform successful?**
 
-Yes, the reform was successful: the coefficient on the interaction term $\hat{\beta}_3 = 0.728$ (`POST:TREATED`) is positive and highly statistically significant ($t = 9.885$, $p < 2 \times 10^{-16}$), indicating that the tax exemption reform increased the number of careworkers per 100 inhabitants in Country A by approximately 0.73 additional careworkers relative to Country B after 1992.
+Yes, the reform was successful: the coefficient on the interaction term $\hat{\beta}_3 = 0.728$ (`POST:TREATED`) is positive and highly statistically significant ($t = 10.550$, $p < 2 \times 10^{-16}$), indicating that the tax exemption reform increased the number of careworkers per 100 inhabitants in Country A by approximately 0.73 additional careworkers relative to the change observed in Country B.
