@@ -123,5 +123,45 @@ A potential concern is that other structural differences or policy changes betwe
 
 # Part II
 
-ITS HIM \@Rochaix
+**1. Estimation of the DiD regression model**
 
+```{r, include=TRUE, warning=FALSE}
+#Estimation
+did_model <- lm(CAREWORKERS ~ POST + TREATED + POST * TREATED, data = df)
+summary(did_model)
+```
+
+**2. Main coefficient of interest**
+
+The main coefficient of interest is $\beta_3$ (the coefficient on the interaction term $POST \times TREATED$), because it captures the difference-in-differences estimator which is the causal effect of the reform on the treated country (Country A) over and above any time trend or baseline group difference.
+
+**3. Interpretation of $\hat\beta_3$**
+
+$\hat\beta_3$ measures the average change in the number of careworkers per 100 inhabitants in Country A after the reform, relative to the counterfactual trend captured by Country B which is the causal treatment effect of the tax exemption reform.
+
+**4. Interpretation of the other coefficients**
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(knitr)
+
+# Create the data frame
+coef_table <- data.frame(
+  Coefficient = c(
+    "$\\hat{\\beta}_0$", 
+    "$\\hat{\\beta}_1$ (POST)", 
+    "$\\hat{\\beta}_2$ (TREATED)"
+  ),
+  Interpretation = c(
+    "The average number of careworkers per 100 inhabitants in Country B before the reform.",
+    "The average change in careworkers after 1992 for Country B (the control group), capturing the common time trend.",
+    "The average difference in careworkers between Country A and Country B before the reform, capturing pre-existing baseline differences."
+  )
+)
+
+# Render the table
+kable(coef_table, escape = FALSE)
+``` 
+
+**5. Was the reform succesful?**
+
+Yes, the reform was successful: the coefficient on the interaction term $\hat{\beta}_3 = 0.728$ (`POST:TREATED`) is positive and highly statistically significant ($t = 9.885$, $p < 2 \times 10^{-16}$), indicating that the tax exemption reform increased the number of careworkers per 100 inhabitants in Country A by approximately 0.73 additional careworkers relative to Country B after 1992.
